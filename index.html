@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0b2d5c" />
-  <title>ELO | Pesquisa de Clima Organizacional — V13</title>
+  <title>ELO | Pesquisa de Clima Organizacional — V14</title>
   <style>
     :root{
       --navy:#0b2d5c;
@@ -606,6 +606,71 @@
       }
     }
 
+  
+    /* =========================================================
+       BLOCO: ACESSOS — LINKS INDIVIDUAIS
+       ========================================================= */
+    .links-panel{
+      margin-top:18px;
+    }
+
+    .links-toolbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-bottom:14px;
+    }
+
+    .links-summary{
+      color:#667085;
+      font-size:13px;
+    }
+
+    .link-cell{
+      max-width:520px;
+      word-break:break-all;
+      color:#344054;
+      font-size:12px;
+      line-height:1.45;
+    }
+
+    .copy-link-btn{
+      border:1px solid #cfd8e3;
+      background:#ffffff;
+      color:#0b2d5c;
+      border-radius:8px;
+      padding:7px 10px;
+      font-size:12px;
+      font-weight:800;
+      cursor:pointer;
+    }
+
+    .copy-link-btn:hover{
+      background:#eef4fb;
+    }
+
+    .links-empty{
+      padding:28px;
+      text-align:center;
+      color:#667085;
+    }
+
+    @media(max-width:720px){
+      .links-toolbar{
+        align-items:stretch;
+      }
+
+      .links-toolbar .actions{
+        width:100%;
+      }
+
+      .links-toolbar .btn{
+        flex:1;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -671,7 +736,7 @@
 
         <div class="login-note">
           O código de acesso é individual. Após o envio de uma resposta oficial,
-          ele será encerrado automaticamente.<br><small>Versão 13.0</small>
+          ele será encerrado automaticamente.<br><small>Versão 14.0</small>
         </div>
       </section>
     </main>
@@ -921,7 +986,49 @@
                 </table>
               </div>
             </div>
-          </section>
+          
+            <div id="generatedLinksPanel" class="card links-panel hidden">
+              <div class="links-toolbar">
+                <div>
+                  <div class="card-title" style="margin-bottom:4px">
+                    <h3>Links individuais de acesso</h3>
+                  </div>
+                  <div id="generatedLinksSummary" class="links-summary">
+                    Nenhum link carregado.
+                  </div>
+                </div>
+
+                <div class="actions">
+                  <button id="copyAllLinksBtn" class="btn btn-secondary" type="button">
+                    Copiar todos
+                  </button>
+                  <button id="downloadLinksCsvBtn" class="btn btn-outline" type="button">
+                    Baixar CSV
+                  </button>
+                </div>
+              </div>
+
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Código</th>
+                      <th>Status</th>
+                      <th>Link individual</th>
+                      <th>Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody id="generatedLinksTableBody">
+                    <tr>
+                      <td colspan="4" class="links-empty">
+                        Clique em “Gerar links” para visualizar os acessos.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+</section>
 
           <section id="admin-block-respostas" class="admin-block">
             <div class="section-intro"><div><h2>Respostas</h2><p>Acompanhamento consolidado das pesquisas concluídas.</p></div></div>
@@ -995,7 +1102,8 @@
       perguntas: [],
       respostas: {},
       currentIndex: 0,
-      classificacao: {}
+      classificacao: {},
+      linksGerados: []
     };
 
     const $ = (id) => document.getElementById(id);
@@ -1387,13 +1495,6 @@
       $('accessRefreshBtn').addEventListener(
         'click',
         loadAccessBlock
-      );
-    }
-
-    if ($('accessGenerateLinksBtn')) {
-      $('accessGenerateLinksBtn').addEventListener(
-        'click',
-        () => $('exportLinksBtn').click()
       );
     }
 
@@ -1877,8 +1978,9 @@
 
     $('refreshDashboardBtn').addEventListener('click', loadDashboard);
 
-    $('exportLinksBtn').addEventListener('click', async () => {
+    async function gerarEExibirLinks() {
       const baseUrl = location.href.split('?')[0];
+
       try {
         const result = await api({
           acao:'GERARLINKS',
@@ -1886,12 +1988,190 @@
           baseUrl
         });
 
-        if (!result.sucesso) throw new Error(result.mensagem || 'Não foi possível gerar os links.');
-        showToast('Links gerados com sucesso.','success');
+        if (!result.sucesso) {
+          throw new Error(
+            result.mensagem ||
+            'Não foi possível gerar os links.'
+          );
+        }
+
+        state.linksGerados = Array.isArray(result.links)
+          ? result.links
+          : [];
+
+        renderGeneratedLinks(state.linksGerados);
+        openAdminBlock('acessos');
+
+        showToast(
+          state.linksGerados.length +
+          ' links carregados com sucesso.',
+          'success'
+        );
       } catch (error) {
         showToast(error.message,'error');
       }
-    });
+    }
+
+    function renderGeneratedLinks(links) {
+      const panel = $('generatedLinksPanel');
+      const body = $('generatedLinksTableBody');
+      const summary = $('generatedLinksSummary');
+
+      if (!panel || !body || !summary) {
+        return;
+      }
+
+      panel.classList.remove('hidden');
+      body.innerHTML = '';
+
+      if (!links.length) {
+        summary.textContent = 'Nenhum link foi retornado pelo servidor.';
+        body.innerHTML =
+          '<tr><td colspan="4" class="links-empty">' +
+          'Nenhum link disponível.' +
+          '</td></tr>';
+        return;
+      }
+
+      summary.textContent =
+        links.length +
+        ' acessos individuais gerados. ' +
+        'O CLIMA-01 é reservado para testes.';
+
+      links.forEach((item, index) => {
+        const statusClass =
+          item.status === 'UTILIZADO'
+            ? 'badge-green'
+            : item.status === 'DISPONIVEL'
+              ? 'badge-blue'
+              : item.status === 'SEMPRE_ATIVO'
+                ? 'badge-amber'
+                : 'badge-red';
+
+        body.insertAdjacentHTML(
+          'beforeend',
+          '<tr>' +
+            '<td><strong>' +
+              escapeHtml(item.codigo) +
+            '</strong></td>' +
+            '<td><span class="badge ' +
+              statusClass +
+            '">' +
+              escapeHtml(item.status || '') +
+            '</span></td>' +
+            '<td class="link-cell">' +
+              escapeHtml(item.link || '') +
+            '</td>' +
+            '<td>' +
+              '<button class="copy-link-btn" ' +
+              'type="button" data-link-index="' +
+              index +
+              '">Copiar</button>' +
+            '</td>' +
+          '</tr>'
+        );
+      });
+
+      body.querySelectorAll('[data-link-index]').forEach(button => {
+        button.addEventListener('click', async () => {
+          const index = Number(button.dataset.linkIndex);
+          const link = state.linksGerados[index]?.link || '';
+
+          if (!link) {
+            return;
+          }
+
+          await navigator.clipboard.writeText(link);
+          showToast('Link copiado.','success');
+        });
+      });
+    }
+
+    async function copiarTodosLinks() {
+      if (!state.linksGerados.length) {
+        showToast('Gere os links antes de copiar.','error');
+        return;
+      }
+
+      const texto = state.linksGerados
+        .map(item => item.codigo + ' | ' + item.link)
+        .join('\n');
+
+      await navigator.clipboard.writeText(texto);
+      showToast('Todos os links foram copiados.','success');
+    }
+
+    function baixarLinksCsv() {
+      if (!state.linksGerados.length) {
+        showToast('Gere os links antes de exportar.','error');
+        return;
+      }
+
+      const linhas = [
+        ['CODIGO','STATUS','LINK']
+      ];
+
+      state.linksGerados.forEach(item => {
+        linhas.push([
+          item.codigo || '',
+          item.status || '',
+          item.link || ''
+        ]);
+      });
+
+      const csv = linhas
+        .map(linha =>
+          linha
+            .map(valor =>
+              '"' +
+              String(valor).replaceAll('"','""') +
+              '"'
+            )
+            .join(';')
+        )
+        .join('\n');
+
+      const blob = new Blob(
+        ['\ufeff' + csv],
+        {type:'text/csv;charset=utf-8;'}
+      );
+
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+
+      anchor.href = url;
+      anchor.download = 'links_pesquisa_clima_elo.csv';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    $('exportLinksBtn').addEventListener(
+      'click',
+      gerarEExibirLinks
+    );
+
+    if ($('accessGenerateLinksBtn')) {
+      $('accessGenerateLinksBtn').addEventListener(
+        'click',
+        gerarEExibirLinks
+      );
+    }
+
+    if ($('copyAllLinksBtn')) {
+      $('copyAllLinksBtn').addEventListener(
+        'click',
+        copiarTodosLinks
+      );
+    }
+
+    if ($('downloadLinksCsvBtn')) {
+      $('downloadLinksCsvBtn').addEventListener(
+        'click',
+        baixarLinksCsv
+      );
+    }
 
     $('logoutBtn').addEventListener('click', async () => {
       if (state.adminToken) {
